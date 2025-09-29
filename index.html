@@ -95,16 +95,7 @@
                 txtFiles.forEach(file => {
                     const li = document.createElement('li');
                     li.textContent = file;
-                    li.onclick = () => {
-                        try {
-                            const encodedFile = encodeURIComponent(file);
-                            // 确保跳转到正确的reader.html路径
-                            window.location.href = `./reader.html?file=${encodedFile}`;
-                        } catch (error) {
-                            console.error('跳转失败:', error);
-                            fileList.innerHTML = '<li class="error">跳转失败: ' + error.message + '</li>';
-                        }
-                    };
+                    li.onclick = () => window.location.href = `reader.html?file=${encodeURIComponent(file)}`;
                     fileList.appendChild(li);
                 });
             } catch (error) {
