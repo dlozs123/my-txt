@@ -48,6 +48,9 @@
             text-align: center;
             padding: 20px;
         }
+        .error {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -66,12 +69,25 @@
         async function fetchFileList() {
             try {
                 const response = await fetch('./files.json');
+                if (!response.ok) throw new Error(`无法加载 files.json: ${response.status}`);
                 const data = await response.json();
                 const fileList = document.getElementById('fileList');
                 fileList.innerHTML = '<li class="loading">加载中...</li>';
 
                 // 过滤出txt文件并生成列表
-                const txtFiles = data.files.filter(file => file.endsWith('.txt'));
+                const txtFiles = (data.files || []).filter(file => {
+                    if (typeof file !== 'string' || !file.endsWith('.txt')) {
+                        console.warn(`跳过无效文件名: ${file}`);
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (txtFiles.length === 0) {
+                    fileList.innerHTML = '<li class="error">无有效的 .txt 文件</li>';
+                    return;
+                }
+
                 fileList.innerHTML = '';
                 txtFiles.forEach(file => {
                     const li = document.createElement('li');
@@ -81,19 +97,31 @@
                 });
             } catch (error) {
                 console.error('加载文件列表失败:', error);
-                document.getElementById('fileList').innerHTML = '<li>加载失败</li>';
+                document.getElementById('fileList').innerHTML = '<li class="error">加载失败: ' + error.message + '</li>';
             }
         }
 
-        // 加载文件内容
+        // 加载文件内容，支持GB2312编码
         async function loadFileContent(filename) {
             try {
                 const response = await fetch(`./${filename}`);
-                const content = await response.text();
+                if (!response.ok) throw new Error(`无法加载 ${filename}: ${response.status}`);
+
+                // 获取原始二进制数据
+                const arrayBuffer = await response.arrayBuffer();
+                // 使用TextDecoder解码GB2312
+                const decoder = new TextDecoder('gb2312');
+                const content = decoder.decode(arrayBuffer);
+
+                // 检查是否是GitHub 404页面
+                if (content.includes('404') && content.includes('GitHub Pages')) {
+                    throw new Error(`文件 ${filename} 不存在`);
+                }
+
                 document.getElementById('fileContent').textContent = content;
             } catch (error) {
                 console.error('加载文件内容失败:', error);
-                document.getElementById('fileContent').innerHTML = '无法加载文件内容';
+                document.getElementById('fileContent').innerHTML = '<p class="error">无法加载文件内容: ' + error.message + '</p>';
             }
         }
 
