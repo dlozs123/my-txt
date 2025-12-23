@@ -1,43 +1,43 @@
 <script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function filledCell(cell) {
+      return cell !== '' && cell != null;
+    }
+    function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+        try {
+            var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
 
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
+            // Convert sheet to JSON to filter blank rows
+            var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+            // Filter out blank rows (rows where all cells are empty, null, or undefined)
+            var filteredData = jsonData.filter(row => row.some(filledCell));
 
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
+            // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+            var headerRowIndex = filteredData.findIndex((row, index) =>
+              row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+            );
+            // Fallback
+            if (headerRowIndex === -1 || headerRowIndex > 25) {
+              headerRowIndex = 0;
             }
+
+            // Convert filtered JSON back to CSV
+            var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+            return csv;
+        } catch (e) {
+            console.error(e);
+            return "";
         }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+    }
+    return gk_fileData[filename] || "";
+    }
+    </script><!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -113,7 +113,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const filename = urlParams.get('file');
 
-        // 加载文件内容，支持GB2312编码
+        // 加载文件内容，支持多种编码
         async function loadFileContent() {
             if (!filename) {
                 document.getElementById('fileContent').innerHTML = '<p class="error">未指定文件</p>';
@@ -124,14 +124,64 @@
                 const response = await fetch(`./${filename}`);
                 if (!response.ok) throw new Error(`无法加载 ${filename}: ${response.status}`);
 
-                // 获取原始二进制数据并解码为GB2312
+                // 获取原始二进制数据
                 const arrayBuffer = await response.arrayBuffer();
-                const decoder = new TextDecoder('gb2312');
-                const content = decoder.decode(arrayBuffer);
-
-                // 检查是否是GitHub 404页面
-                if (content.includes('404') && content.includes('GitHub Pages')) {
-                    throw new Error(`文件 ${filename} 不存在`);
+                
+                // 尝试多种编码方式解码
+                let content = '';
+                let decodeSuccess = false;
+                
+                // 先尝试UTF-8解码
+                try {
+                    const decoder = new TextDecoder('utf-8');
+                    content = decoder.decode(arrayBuffer);
+                    
+                    // 检查是否是GitHub 404页面
+                    if (content.includes('404') && content.includes('GitHub Pages')) {
+                        throw new Error(`文件 ${filename} 不存在`);
+                    }
+                    
+                    // 检查UTF-8解码是否成功（没有出现大量乱码）
+                    // 简单检查：如果文本长度大于0且没有大量替换字符(�)，则认为是成功解码
+                    const replacementCharCount = (content.match(/�/g) || []).length;
+                    if (replacementCharCount < content.length * 0.01) { // 替换字符少于1%
+                        decodeSuccess = true;
+                    }
+                } catch (e) {
+                    console.log('UTF-8解码失败，尝试GB2312:', e);
+                }
+                
+                // 如果UTF-8解码失败，尝试GB2312
+                if (!decodeSuccess) {
+                    try {
+                        const decoder = new TextDecoder('gb2312');
+                        content = decoder.decode(arrayBuffer);
+                        
+                        // 检查是否是GitHub 404页面
+                        if (content.includes('404') && content.includes('GitHub Pages')) {
+                            throw new Error(`文件 ${filename} 不存在`);
+                        }
+                        
+                        decodeSuccess = true;
+                    } catch (e) {
+                        console.log('GB2312解码失败:', e);
+                    }
+                }
+                
+                // 如果两种编码都失败，尝试使用UTF-8并忽略错误
+                if (!decodeSuccess) {
+                    try {
+                        const decoder = new TextDecoder('utf-8', { fatal: false });
+                        content = decoder.decode(arrayBuffer);
+                        
+                        // 检查是否是GitHub 404页面
+                        if (content.includes('404') && content.includes('GitHub Pages')) {
+                            throw new Error(`文件 ${filename} 不存在`);
+                        }
+                    } catch (e) {
+                        console.log('所有解码尝试都失败:', e);
+                        throw new Error('无法解码文件内容，可能是不支持的编码格式');
+                    }
                 }
 
                 document.getElementById('fileContent').textContent = content;
