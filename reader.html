@@ -121,7 +121,8 @@
             }
 
             try {
-                const response = await fetch(`./${filename}`);
+                // 从txt文件夹中读取文件
+                const response = await fetch(`./txt/${filename}`);
                 if (!response.ok) throw new Error(`无法加载 ${filename}: ${response.status}`);
 
                 // 获取原始二进制数据
@@ -142,8 +143,8 @@
                     }
                     
                     // 检查UTF-8解码是否成功（没有出现大量乱码）
-                    // 简单检查：如果文本长度大于0且没有大量替换字符(�)，则认为是成功解码
-                    const replacementCharCount = (content.match(/�/g) || []).length;
+                    // 简单检查：如果文本长度大于0且没有大量替换字符( )，则认为是成功解码
+                    const replacementCharCount = (content.match(/ /g) || []).length;
                     if (replacementCharCount < content.length * 0.01) { // 替换字符少于1%
                         decodeSuccess = true;
                     }
