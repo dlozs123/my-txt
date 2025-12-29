@@ -113,7 +113,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const filename = urlParams.get('file');
 
-        // 加载文件内容，支持多种编码
+        // 加载文件内容，强制使用UTF-8编码
         async function loadFileContent() {
             if (!filename) {
                 document.getElementById('fileContent').innerHTML = '<p class="error">未指定文件</p>';
@@ -128,61 +128,13 @@
                 // 获取原始二进制数据
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // 尝试多种编码方式解码
-                let content = '';
-                let decodeSuccess = false;
-                
-                // 先尝试UTF-8解码
-                try {
-                    const decoder = new TextDecoder('utf-8');
-                    content = decoder.decode(arrayBuffer);
-                    
-                    // 检查是否是GitHub 404页面
-                    if (content.includes('404') && content.includes('GitHub Pages')) {
-                        throw new Error(`文件 ${filename} 不存在`);
-                    }
-                    
-                    // 检查UTF-8解码是否成功（没有出现大量乱码）
-                    // 简单检查：如果文本长度大于0且没有大量替换字符( )，则认为是成功解码
-                    const replacementCharCount = (content.match(/ /g) || []).length;
-                    if (replacementCharCount < content.length * 0.01) { // 替换字符少于1%
-                        decodeSuccess = true;
-                    }
-                } catch (e) {
-                    console.log('UTF-8解码失败，尝试GB2312:', e);
-                }
-                
-                // 如果UTF-8解码失败，尝试GB2312
-                if (!decodeSuccess) {
-                    try {
-                        const decoder = new TextDecoder('gb2312');
-                        content = decoder.decode(arrayBuffer);
-                        
-                        // 检查是否是GitHub 404页面
-                        if (content.includes('404') && content.includes('GitHub Pages')) {
-                            throw new Error(`文件 ${filename} 不存在`);
-                        }
-                        
-                        decodeSuccess = true;
-                    } catch (e) {
-                        console.log('GB2312解码失败:', e);
-                    }
-                }
-                
-                // 如果两种编码都失败，尝试使用UTF-8并忽略错误
-                if (!decodeSuccess) {
-                    try {
-                        const decoder = new TextDecoder('utf-8', { fatal: false });
-                        content = decoder.decode(arrayBuffer);
-                        
-                        // 检查是否是GitHub 404页面
-                        if (content.includes('404') && content.includes('GitHub Pages')) {
-                            throw new Error(`文件 ${filename} 不存在`);
-                        }
-                    } catch (e) {
-                        console.log('所有解码尝试都失败:', e);
-                        throw new Error('无法解码文件内容，可能是不支持的编码格式');
-                    }
+                // 仅使用UTF-8解码，不再尝试其他编码
+                const decoder = new TextDecoder('utf-8');
+                const content = decoder.decode(arrayBuffer);
+
+                // 检查是否是GitHub 404页面 (防止在GitHub Pages上文件不存在时返回HTML)
+                if (content.includes('404') && content.includes('GitHub Pages')) {
+                    throw new Error(`文件 ${filename} 不存在`);
                 }
 
                 document.getElementById('fileContent').textContent = content;
